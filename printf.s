@@ -5,7 +5,7 @@ section .text
 firstSymb   equ   62h
 lastSymb    equ   78h
 
-bufferLen   equ   4h
+bufferLen   equ   128d
 stdOut      equ   1h
 funcNum     equ   1h
 
@@ -20,80 +20,6 @@ binMaxDigit equ   01h
 decMaxDigit equ   09d
 
 errorLen   equ   15d
-
-
-%macro        NumPrint 1
- .loop          push rax  
-                push rbx
-
- .rShift        dec rbx
-                jz .rContinue
-                shr rax, %1
-                jmp .rShift
-
- .rContinue     pop rbx
-
-                mov byte dl, [digits + rax]
-
-                mov byte [rsi], dl
-                inc rsi
-                dec rcx
-
-                mov r8, rax
-
-                push rbx
-
- .lShift        dec rbx
-                jz .lContinue
-                shl r8, %1
-                jmp .lShift
-
- .lContinue     pop rbx
-                pop rax
-                sub rax, r8
-
-                dec rbx
-
-                cmp rbx, 0
-                je .strEnd
-            
-                cmp rcx, 0
-                je .bufOutput
-
-                jmp .loop
-
- .bufOutput     push rax
-                mov rdx, bufferLen
-                mov rsi, buffer
-                call bufferOutput
-                pop rax
-
-                mov rcx, bufferLen
-
-                mov qword [buffer], 0h
-                jmp .loop
-    
- .strEnd        mov rdx, bufferLen
-                mov rsi, buffer
-                sub rdx, rcx
-                call bufferOutput
-
-                mov qword [buffer], 0h
-%endmacro
-
-
-%macro          CountDigits 2 
-                push rax
-                xor rbx, rbx
-
- .count         inc rbx
-                cmp rax, %2     ;max digit
-                jle .end
-                shr rax, %1     ;shift len
-                jmp .count
-
- .end           pop rax 
-%endmacro
 
 
 start:
@@ -217,9 +143,11 @@ print
                 pop rdi
 
                 mov rax, [arg]
-                mov rcx, bufferLen
-                CountDigits binShift, binMaxDigit
-                NumPrint binShift
+                mov r8, bufferLen
+                mov cl, binShift
+                mov r10, binMaxDigit
+                call CountDigits
+                call NumPrint
 
                 mov rsi, buffer
                 mov rcx, bufferLen
@@ -256,9 +184,11 @@ print
                 pop rdi
 
                 mov rax, [arg]
-                mov rcx, bufferLen
-                CountDigits octShift, octMaxDigit
-                NumPrint octShift
+                mov r8, bufferLen
+                mov cl, octShift
+                mov r10, octMaxDigit
+                call CountDigits
+                call NumPrint
 
                 mov rsi, buffer
                 mov rcx, bufferLen
@@ -283,9 +213,11 @@ print
                 pop rdi
 
                 mov rax, [arg]
-                mov rcx, bufferLen
-                CountDigits hexShift, hexMaxDigit
-                NumPrint hexShift
+                mov r8, bufferLen
+                mov cl, hexShift
+                mov r10, hexMaxDigit
+                call CountDigits
+                call NumPrint
 
                 mov rsi, buffer
                 mov rcx, bufferLen
@@ -305,6 +237,89 @@ strlen          xor rdx, rdx
                 cmp al, 0
                 jne .len
 
+                ret
+;-------------------------------------------------------
+;Entry:         rax - num
+;               cl - shift length
+;               r10  - max digit
+;Exit:          rbx - amount of digits
+;-------------------------------------------------------
+CountDigits     push rax
+                push rcx
+                xor rbx, rbx
+
+ .count         inc rbx
+                cmp rax, r10    ;max digit
+                jle .end
+                shr rax, cl    ;shift len
+                jmp .count
+
+ .end           pop rcx
+                pop rax 
+                ret
+;--------------------------------------------------------
+;Entry:         rax - num
+;               rbx - number of digits
+;               cl  - shift len
+;               r8  - buffer len
+;--------------------------------------------------------
+NumPrint 
+ .loop          push rax  
+                push rbx
+
+ .rShift        dec rbx
+                jz .rContinue
+                shr rax, cl
+                jmp .rShift
+
+ .rContinue     pop rbx
+
+                mov byte dl, [digits + rax]
+
+                mov byte [rsi], dl
+                inc rsi
+                dec r8
+
+                mov r9, rax
+
+                push rbx
+
+ .lShift        dec rbx
+                jz .lContinue
+                shl r9, cl
+                jmp .lShift
+
+ .lContinue     pop rbx
+                pop rax
+                sub rax, r9
+
+                dec rbx
+
+                cmp rbx, 0
+                je .strEnd
+            
+                cmp r8, 0
+                je .bufOutput
+
+                jmp .loop
+
+ .bufOutput     push rax
+                mov rdx, bufferLen
+                mov rsi, buffer
+                call bufferOutput
+                pop rax
+
+                mov r8, bufferLen
+
+                mov qword [buffer], 0h
+                jmp .loop
+    
+ .strEnd        mov rdx, bufferLen
+                mov rsi, buffer
+                sub rdx, r8
+                call bufferOutput
+
+                mov qword [buffer], 0h
                 ret
 ;--------------------------------------------------------
 ;Entry:         rax - num
@@ -413,9 +428,11 @@ DecNumPrint
                 ret
 ;--------------------------------------------------------
 bufferOutput    push rdi
+                push rcx
                 mov rdi, stdOut
                 mov rax, funcNum
                 syscall
+                pop rcx
                 pop rdi
 
                 ret
